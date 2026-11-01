@@ -131,7 +131,14 @@ function leaveSeat(room, player, now = Date.now()) {
         commit(room);
 }
 export function createRoom(socket, name) {
-    const room = { code: allocateCode(), phase: 'lobby', hostId: null, players: new Map(), game: null };
+    const room = {
+        code: allocateCode(),
+        phase: 'lobby',
+        hostId: null,
+        players: new Map(),
+        game: null,
+        playedChanges: new Set(),
+    };
     const player = addPlayer(room, name);
     room.hostId = player.id;
     rooms.set(room.code, room);
@@ -193,7 +200,7 @@ export function sweepExpired(now = Date.now()) {
             continue;
         }
         let changed = false;
-        // Mid-game, expired players keep their seat (and score) until the room returns to the lobby.
+        // Mid-game, expired players keep their seat (and role) until the room returns to the lobby.
         if (room.phase === 'lobby') {
             for (const p of players) {
                 if (expired(p)) {

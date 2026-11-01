@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
 import { MAX_NAME_LENGTH } from '../shared/rules.js';
-import { backToLobby, nextRound, startGame, submitClue, submitVote } from './game.js';
+import { addComment, backToLobby, nextStep, startGame, submitRetroVote, submitVerdict, } from './game.js';
 import { act, createRoom, handleDisconnect, joinRoom, leaveRoom, setIo, } from './rooms.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CODE_RE = /^[A-Z]{4}$/;
@@ -48,14 +48,17 @@ function registerHandlers(socket) {
     socket.on('game:start', () => {
         reportError(socket, act(socket, (room, _player, now) => startGame(room, now), { hostOnly: true }));
     });
-    socket.on('game:clue', (text) => {
-        reportError(socket, act(socket, (room, player, now) => submitClue(room, player.id, text, now)));
+    socket.on('game:verdict', (verdict) => {
+        reportError(socket, act(socket, (room, player, now) => submitVerdict(room, player.id, verdict, now)));
     });
-    socket.on('game:vote', (targetId) => {
-        reportError(socket, act(socket, (room, player, now) => submitVote(room, player.id, targetId, now)));
+    socket.on('game:retro', (vote) => {
+        reportError(socket, act(socket, (room, player, now) => submitRetroVote(room, player.id, vote, now)));
+    });
+    socket.on('game:comment', (payload) => {
+        reportError(socket, act(socket, (room, player, now) => addComment(room, player.id, payload, now)));
     });
     socket.on('game:next', () => {
-        reportError(socket, act(socket, (room, _player, now) => nextRound(room, now), { hostOnly: true }));
+        reportError(socket, act(socket, (room, _player, now) => nextStep(room, now), { hostOnly: true }));
     });
     socket.on('game:lobby', () => {
         reportError(socket, act(socket, (room) => backToLobby(room), { hostOnly: true }));

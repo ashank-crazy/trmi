@@ -44,9 +44,10 @@ const ERROR_TEXT: Record<RoomError, string> = {
   NOT_HOST: 'Only the host can do that.',
   NOT_ENOUGH_PLAYERS: 'Need at least 4 players online to start.',
   WRONG_PHASE: "That isn't possible right now.",
-  CLUE_INVALID: 'Clues must be 1–24 characters.',
-  CLUE_HAS_WORD: "Your clue can't contain your word.",
-  VOTE_INVALID: "You can't vote for that player.",
+  VOTE_INVALID: "You can't vote for that.",
+  VOTED_OUT: "You were voted out, so you can't do that.",
+  COMMENT_INVALID: 'Comments must be 1–160 characters.',
+  COMMENT_LIMIT: "Slow down, you're commenting too fast.",
   SESSION_REPLACED: 'This seat was opened in another tab.',
 };
 

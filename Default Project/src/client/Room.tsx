@@ -183,7 +183,7 @@ export default function Room({ code }: { code: string }): React.JSX.Element {
             {copied ? <CheckIcon /> : <CopyIcon />}
             <span className="btn-label">{copied ? 'Copied!' : 'Copy link'}</span>
           </button>
-          {isHost && state.phase !== 'lobby' && state.phase !== 'results' && (
+          {isHost && state.phase !== 'lobby' && state.phase !== 'debrief' && (
             <button
               className="sm"
               aria-label="End game"

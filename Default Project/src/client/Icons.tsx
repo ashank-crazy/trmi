@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-/** Five dots, one of them odd. */
+/** Five dots, one of them the saboteur. */
 export function LogoMark({ large = false }: { large?: boolean }): React.JSX.Element {
   return (
     <span className={large ? 'logo-mark large' : 'logo-mark'} aria-hidden>
@@ -41,9 +41,9 @@ function Icon({ children, size = 16 }: { children: ReactNode; size?: number }): 
   );
 }
 
-export function CheckIcon(): React.JSX.Element {
+export function CheckIcon({ size }: { size?: number }): React.JSX.Element {
   return (
-    <Icon>
+    <Icon size={size}>
       <path d="M5 12.5l4.5 4.5L19 7.5" />
     </Icon>
   );
@@ -77,11 +77,40 @@ export function FlagIcon(): React.JSX.Element {
   );
 }
 
-export function CrownIcon(): React.JSX.Element {
+export function XIcon({ size }: { size?: number }): React.JSX.Element {
   return (
-    <svg width={30} height={30} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M3 8.5l4.5 3.5L12 5l4.5 7L21 8.5 19 18H5z" />
-      <rect x="5" y="19.2" width="14" height="2" rx="1" />
-    </svg>
+    <Icon size={size}>
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    </Icon>
+  );
+}
+
+export function BotIcon({ size }: { size?: number }): React.JSX.Element {
+  return (
+    <Icon size={size}>
+      <rect x="4" y="8" width="16" height="12" rx="3.5" />
+      <path d="M12 8V4.5" />
+      <circle cx="12" cy="3.5" r="1" />
+      <path d="M9 13.5v1M15 13.5v1M2 13v3M22 13v3" />
+    </Icon>
+  );
+}
+
+export function BugIcon({ size }: { size?: number }): React.JSX.Element {
+  return (
+    <Icon size={size}>
+      <path d="M8 10h8v5a4 4 0 0 1-8 0z" />
+      <path d="M9.5 10V8.5a2.5 2.5 0 0 1 5 0V10" />
+      <path d="M12 13v6M4 13h4M16 13h4M5 8.5l3 2M19 8.5l-3 2M5 19l3-2M19 19l-3-2" />
+    </Icon>
+  );
+}
+
+export function ShieldIcon({ size }: { size?: number }): React.JSX.Element {
+  return (
+    <Icon size={size}>
+      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </Icon>
   );
 }

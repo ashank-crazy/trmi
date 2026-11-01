@@ -1,4 +1,4 @@
-import type { RoomPhase, RoundReveal } from '../shared/types.js';
+import type { Comment, RetroResult, RetroVote, RoomPhase, Side, Verdict, WinReason } from '../shared/types.js';
 
 export interface InternalPlayer {
   /** public id, visible to everyone in the room */
@@ -11,26 +11,36 @@ export interface InternalPlayer {
   socketId: string | null;
 }
 
+export interface ReviewResult {
+  /** index into CHANGES */
+  change: number;
+  merged: boolean;
+  votes: Map<string, Verdict>;
+}
+
 export interface Game {
-  /** outsider rotation: round N's outsider is order[N - 1] when they're online */
-  order: string[];
-  round: number;
-  totalRounds: number;
-  cluePass: number;
-  outsiderId: string;
-  majorityWord: string;
-  outsiderWord: string;
-  /** clues from completed passes this round */
-  clues: Map<string, (string | null)[]>;
-  /** clues submitted during the current pass, hidden until it ends */
-  pending: Map<string, string>;
-  /** voterId -> targetId */
-  votes: Map<string, string>;
-  scores: Map<string, number>;
-  reveal: RoundReveal | null;
-  /** when the current clue/vote phase times out; null outside timed phases */
+  saboteurId: string;
+  /** indices into CHANGES, in the order the agent proposes them */
+  queue: number[];
+  /** position in the queue of the change being (or last) reviewed */
+  current: number;
+  /** clean changes merged */
+  shipped: number;
+  /** bugged changes merged */
+  bugsShipped: number;
+  /** players voted off the team at a retro */
+  benched: Set<string>;
+  verdicts: Map<string, Verdict>;
+  retroVotes: Map<string, RetroVote>;
+  reviewed: ReviewResult[];
+  retro: RetroResult | null;
+  /** discussion for the current change or retro */
+  comments: Comment[];
+  nextCommentId: number;
+  lastCommentAt: Map<string, number>;
+  winner: { side: Side; reason: WinReason } | null;
+  /** when the current review or retro times out; null outside timed phases */
   deadline: number | null;
-  usedPairs: Set<number>;
 }
 
 export interface Room {
@@ -40,4 +50,6 @@ export interface Room {
   /** insertion order is seat order */
   players: Map<string, InternalPlayer>;
   game: Game | null;
+  /** changes used in earlier games, so the next game prefers fresh ones */
+  playedChanges: Set<number>;
 }

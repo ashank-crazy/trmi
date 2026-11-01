@@ -181,58 +181,63 @@ describe('lobby', () => {
   });
 });
 
+/** Has every client that can vote send `emit`, then waits for everyone to see `phase`. */
+async function everyone(clients: Client[], emit: (c: Client) => void, phase: RoomState['phase']): Promise<void> {
+  for (const c of clients) if (!c.state!.game!.benched.includes(c.you)) emit(c);
+  await Promise.all(clients.map((c) => c.until((s) => s.phase === phase, phase)));
+}
+
 describe('a full game', () => {
-  it('plays every round to the results and back to the lobby', async () => {
+  it('plays through reviews and retros to the debrief and back to the lobby', async () => {
     const { clients, code } = await fillRoom(4);
     const [host] = clients;
     host.socket.emit('game:start');
-    await Promise.all(clients.map((c) => c.until((s) => s.phase === 'clue', 'clue phase')));
+    await Promise.all(clients.map((c) => c.until((s) => s.phase === 'review', 'review')));
 
     const late = new Client();
     assert.deepEqual(await late.join(code, 'Late'), { ok: false, error: 'GAME_IN_PROGRESS' });
 
-    const totalRounds = host.state!.game!.totalRounds;
-    assert.equal(totalRounds, 4);
-    const outsiders = new Set<string>();
+    // Exactly one saboteur, and only they get told about bugs.
+    const saboteurs = clients.filter((c) => c.state!.game!.role === 'saboteur');
+    assert.equal(saboteurs.length, 1);
+    for (const c of clients) assert.equal(c.state!.game!.intel !== null, c === saboteurs[0]);
 
-    for (let round = 1; round <= totalRounds; round++) {
-      await Promise.all(clients.map((c) => c.until((s) => s.phase === 'clue' && s.game!.round === round)));
+    clients[1].socket.emit('game:comment', { text: 'line 1 looks odd', line: 0 });
+    const seen = await clients[2].until((s) => s.game!.comments.length === 1, 'comment');
+    assert.deepEqual(seen.game!.comments[0], { id: 1, by: clients[1].you, text: 'line 1 looks odd', line: 0 });
 
-      // Exactly one player holds a different word, and only they can see it.
-      const words = clients.map((c) => c.state!.game!.yourWord!);
-      const counts = new Map<string, number>();
-      for (const w of words) counts.set(w, (counts.get(w) ?? 0) + 1);
-      assert.deepEqual([...counts.values()].sort(), [1, 3]);
-      const odd = clients[words.findIndex((w) => counts.get(w) === 1)];
-      outsiders.add(odd.you);
+    // Approve everything: the game ends as soon as 4 clean changes or 2 bugs are merged.
+    while (true) {
+      await everyone(clients, (c) => c.socket.emit('game:verdict', 'approve'), 'outcome');
+      const outcome = host.state!.game!;
+      assert.equal(outcome.history.at(-1)!.merged, true);
+      assert.equal(Object.keys(outcome.history.at(-1)!.votes).length, 4);
+      if (outcome.winner) break;
 
-      for (let pass = 1; pass <= 2; pass++) {
-        await Promise.all(clients.map((c) => c.until((s) => s.phase === 'clue' && s.game!.cluePass === pass)));
-        clients.forEach((c, i) => c.socket.emit('game:clue', `hint${i}x${pass}`));
-      }
-
-      await Promise.all(clients.map((c) => c.until((s) => s.phase === 'vote', 'vote phase')));
-      assert.deepEqual(host.state!.game!.clues[host.you], ['hint0x1', 'hint0x2']);
-      for (const c of clients) {
-        const target = c === odd ? clients.find((o) => o !== odd)! : odd;
-        c.socket.emit('game:vote', target.you);
-      }
-
-      const reveal = (await host.until((s) => s.phase === 'reveal', 'reveal')).game!.reveal!;
-      assert.equal(reveal.outsiderId, odd.you);
-      assert.equal(reveal.caught, true);
-      assert.equal(Object.keys(reveal.points).length, 3);
-
-      // Only the host can move on.
       clients[1].socket.emit('game:next');
       await clients[1].untilError('NOT_HOST');
       host.socket.emit('game:next');
+      await host.until((s) => s.phase === 'review' || s.phase === 'retro', 'next phase');
+      if (host.state!.phase === 'retro') {
+        await everyone(clients, (c) => c.socket.emit('game:retro', 'skip'), 'verdict');
+        assert.equal(host.state!.game!.retro!.ejectedId, null);
+        host.socket.emit('game:next');
+        await host.until((s) => s.phase === 'review', 'review');
+      }
     }
 
-    const results = await host.until((s) => s.phase === 'results', 'results');
-    assert.equal(outsiders.size, 4, 'everyone was the odd one out once');
-    // Each player caught the outsider in the 3 rounds they weren't it.
-    assert.deepEqual(Object.values(results.game!.scores), [3, 3, 3, 3]);
+    const { shipped, bugsShipped, winner } = host.state!.game!;
+    assert.deepEqual(
+      winner,
+      bugsShipped === 2 ? { side: 'saboteur', reason: 'bugs' } : { side: 'reviewers', reason: 'shipped' },
+    );
+    assert.equal(shipped === 4 || bugsShipped === 2, true);
+
+    host.socket.emit('game:next');
+    const debrief = (await clients[3].until((s) => s.phase === 'debrief', 'debrief')).game!.debrief!;
+    assert.equal(debrief.saboteurId, saboteurs[0].you);
+    assert.equal(debrief.changes.length, shipped + bugsShipped);
+    assert.equal(debrief.changes.filter((c) => c.bug).length, bugsShipped);
 
     host.socket.emit('game:lobby');
     const lobby = await clients[3].until((s) => s.phase === 'lobby', 'lobby');
@@ -240,25 +245,47 @@ describe('a full game', () => {
     assert.equal(lobby.players.length, 4);
   });
 
+  it('ends the game when the team votes out the saboteur', async () => {
+    const { clients } = await fillRoom(4);
+    const [host] = clients;
+    host.socket.emit('game:start');
+    await Promise.all(clients.map((c) => c.until((s) => s.phase === 'review', 'review')));
+    const saboteur = clients.find((c) => c.state!.game!.role === 'saboteur')!;
+    const scapegoat = clients.find((c) => c !== saboteur)!;
+
+    for (let i = 0; i < 2; i++) {
+      await everyone(clients, (c) => c.socket.emit('game:verdict', 'reject'), 'outcome');
+      host.socket.emit('game:next');
+    }
+    await Promise.all(clients.map((c) => c.until((s) => s.phase === 'retro', 'retro')));
+    await everyone(
+      clients,
+      (c) => c.socket.emit('game:retro', c === saboteur ? scapegoat.you : saboteur.you),
+      'verdict',
+    );
+    assert.deepEqual(host.state!.game!.retro!.ejectedId, saboteur.you);
+    assert.deepEqual(host.state!.game!.winner, { side: 'reviewers', reason: 'caught' });
+  });
+
   it('keeps a disconnected player seated mid-game and lets them rejoin', async () => {
     const { clients, code } = await fillRoom(4);
     const [host, , , quitter] = clients;
     host.socket.emit('game:start');
-    await quitter.until((s) => s.phase === 'clue');
-    const { youId: you = "", youToken } = quitter.state!;
-    const word = quitter.state!.game!.yourWord;
+    await quitter.until((s) => s.phase === 'review');
+    const { youId: you = '', youToken } = quitter.state!;
+    const role = quitter.state!.game!.role;
 
     quitter.socket.disconnect();
     await host.until((s) => s.players.some((p) => p.id === you && !p.online));
-    // The three remaining players are enough to finish the pass.
-    clients.slice(0, 3).forEach((c, i) => c.socket.emit('game:clue', `hint${i}`));
-    await host.until((s) => s.game!.cluePass === 2, 'second pass');
-    assert.deepEqual(host.state!.game!.clues[you], [null]);
+    // The three remaining players are enough to finish the review.
+    clients.slice(0, 3).forEach((c) => c.socket.emit('game:verdict', 'reject'));
+    await host.until((s) => s.phase === 'outcome', 'outcome');
+    assert.equal(you in host.state!.game!.history[0].votes, false);
 
     const back = new Client();
     const res = await back.join(code, 'Quitter', youToken);
     assert.equal(res.ok, true);
-    assert.equal(res.ok && res.state.game!.yourWord, word);
-    assert.equal(res.ok && res.state.phase, 'clue');
+    assert.equal(res.ok && res.state.game!.role, role);
+    assert.equal(res.ok && res.state.phase, 'outcome');
   });
 });

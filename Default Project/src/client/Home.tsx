@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MAX_NAME_LENGTH, MAX_PLAYERS, MIN_PLAYERS } from '../shared/rules';
+import { BUGS_TO_WIN, MAX_NAME_LENGTH, MAX_PLAYERS, MIN_PLAYERS, RETRO_EVERY, SHIP_TO_WIN } from '../shared/rules';
 import type { RoomError, RoomState } from '../shared/types';
 import { LogoMark } from './Icons';
 import { navigate } from './router';
@@ -7,17 +7,20 @@ import { errorText, getName, saveName, saveToken, socket } from './socket';
 
 const HOW_TO: [string, string][] = [
   [
-    'Get your word',
-    'All but one player share a secret word. The odd one out gets a related one, and nobody knows who that is. Not even them.',
+    'Get your role',
+    'One of you is secretly the saboteur. Only they know which of Otto the AI agent’s changes hide a bug.',
   ],
   [
-    'Drop two clues',
-    'Write a short clue, twice. Clues are revealed all at once. Too vague looks suspicious; too obvious helps the odd one out.',
+    'Review each change',
+    'Read the diff, comment on lines, then approve or reject. It merges only if approvals outnumber rejections.',
   ],
-  ['Vote', 'Point at the player you think had the different word.'],
   [
-    'Score',
-    'Catch them and everyone who voted right gets +1. If they slip away (or it’s a tie), the odd one out gets +3.',
+    'Hold a retro',
+    `Every ${RETRO_EVERY} changes, vote someone off the team. Catch the saboteur and the reviewers win on the spot.`,
+  ],
+  [
+    'Ship or sink',
+    `Reviewers win by shipping ${SHIP_TO_WIN} clean changes. The saboteur wins once ${BUGS_TO_WIN} bugs merge, or if too many clean changes get rejected. The debrief shows every bug and who fell for it.`,
   ],
 ];
 
@@ -76,16 +79,17 @@ export default function Home(): React.JSX.Element {
       <header className="hero">
         <LogoMark large />
         <h1 className="title">
-          Odd <span className="gradient-text">One</span> Out
+          <span className="gradient-text">Sabotage</span>
         </h1>
         <p className="tagline">
-          Everyone gets the same secret word — except one player. Drop clues, read the room, and vote out the odd one.
+          Among Us for code review. An AI agent proposes changes, your team approves or rejects them, and one of you is
+          secretly trying to ship the bugs.
         </p>
         <div className="chips">
           <span className="chip">
             {MIN_PLAYERS}–{MAX_PLAYERS} players
           </span>
-          <span className="chip">~10 minutes</span>
+          <span className="chip">~15 minutes</span>
           <span className="chip">No sign-up</span>
         </div>
       </header>
